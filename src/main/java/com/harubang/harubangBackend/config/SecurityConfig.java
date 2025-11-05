@@ -4,7 +4,7 @@ import com.harubang.harubangBackend.filter.JwtAuthenticationFilter;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.http.HttpMethod;
+import org.springframework.http.HttpMethod; // [추가됨]
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
@@ -48,11 +48,24 @@ public class SecurityConfig {
         http
                 .csrf(AbstractHttpConfigurer::disable)
                 .cors(cors -> cors.configurationSource(corsConfigurationSource()))
+                .formLogin(AbstractHttpConfigurer::disable) // 폼 로그인 비활성화
+                .httpBasic(AbstractHttpConfigurer::disable) // HTTP Basic 비활성화
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
 
                 .authorizeHttpRequests(authz -> authz
+                        // 1. 인증 없이 허용
                         .requestMatchers("/api/auth/**").permitAll()
+
+                        // [수정] 중개사무소 검색 API 누구나 허용
+                        .requestMatchers(HttpMethod.GET, "/api/agent-licenses/search").permitAll()
+
+                        // 2. CUSTOMER 역할만 허용
                         .requestMatchers(HttpMethod.POST, "/api/requests").hasRole("CUSTOMER")
+
+                        // 3. AGENT 역할만 허용
+                        .requestMatchers(HttpMethod.POST, "/api/properties").hasRole("AGENT")
+
+                        // 4. 그 외 모든 요청은 인증 필요
                         .anyRequest().authenticated()
                 )
 
