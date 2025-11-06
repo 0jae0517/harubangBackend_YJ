@@ -38,9 +38,9 @@ public class AgentLicenseApiService {
                 .queryParam("numOfRows", "1") // 1개만 조회
                 .queryParam("pageNo", "1")
                 .queryParam("type", "json") // 응답 타입을 JSON으로 요청
-                .encode() // UTF-8 인코딩
-                .build()
-                .toUri();
+                .build() // [수정] 1. 먼저 빌드
+                .encode() // [수정] 2. 그 다음 인코딩
+                .toUri(); // [수정] 3. URI로 변환
 
         System.out.println("Request URI: " + uri); // (디버깅용 로그)
 
@@ -97,7 +97,12 @@ public class AgentLicenseApiService {
             uriBuilder.queryParam("MED_OFFICE_NM", query); // 상호명으로 검색
         }
 
-        URI uri = uriBuilder.encode().build().toUri();
+        // [수정] .build().encode().toUri() 순서로 변경
+        URI uri = uriBuilder
+                .build() // [수정] 1. 먼저 빌드
+                .encode() // [수정] 2. 그 다음 인코딩
+                .toUri(); // [수정] 3. URI로 변환
+
         System.out.println("Search URI: " + uri); // 디버깅 로그
 
         try {
