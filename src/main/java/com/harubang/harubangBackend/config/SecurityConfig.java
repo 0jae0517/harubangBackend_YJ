@@ -1,10 +1,11 @@
 package com.harubang.harubangBackend.config;
 
+import com.harubang.harubangBackend.exception.CustomAccessDeniedHandler; // [추가]
 import com.harubang.harubangBackend.filter.JwtAuthenticationFilter;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.http.HttpMethod; // [추가됨]
+import org.springframework.http.HttpMethod;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
@@ -25,6 +26,7 @@ import java.util.Arrays;
 public class SecurityConfig {
 
     private final JwtAuthenticationFilter jwtAuthenticationFilter;
+    private final CustomAccessDeniedHandler customAccessDeniedHandler; // [추가] 1단계에서 만든 핸들러 주입
 
     @Bean
     public PasswordEncoder passwordEncoder() {
@@ -34,9 +36,15 @@ public class SecurityConfig {
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
-        configuration.setAllowedOrigins(Arrays.asList("*"));
+
+        configuration.setAllowedOrigins(Arrays.asList(
+                "http://localhost:5173", // 로컬 개발용 프론트 주소
+                "https://your-production-domain.com" // 나중에 배포할 실제 도메인 주소
+        ));
+
         configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "OPTIONS"));
         configuration.setAllowedHeaders(Arrays.asList("*"));
+        configuration.setAllowCredentials(true);
 
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/**", configuration);
@@ -48,24 +56,21 @@ public class SecurityConfig {
         http
                 .csrf(AbstractHttpConfigurer::disable)
                 .cors(cors -> cors.configurationSource(corsConfigurationSource()))
-                .formLogin(AbstractHttpConfigurer::disable) // 폼 로그인 비활성화
-                .httpBasic(AbstractHttpConfigurer::disable) // HTTP Basic 비활성화
+                .formLogin(AbstractHttpConfigurer::disable)
+                .httpBasic(AbstractHttpConfigurer::disable)
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
 
+                // [수정] 예외 처리 핸들러 등록
+                .exceptionHandling(ex ->
+                                ex.accessDeniedHandler(customAccessDeniedHandler) // 403 (권한 없음) 오류 시
+                        // [참고] 401 (인증 실패) 오류 핸들러는 여기에 .authenticationEntryPoint(...)로 추가 가능
+                )
+
                 .authorizeHttpRequests(authz -> authz
-                        // 1. 인증 없이 허용
                         .requestMatchers("/api/auth/**").permitAll()
-
-                        // [수정] 중개사무소 검색 API 누구나 허용
                         .requestMatchers(HttpMethod.GET, "/api/agent-licenses/search").permitAll()
-
-                        // 2. CUSTOMER 역할만 허용
                         .requestMatchers(HttpMethod.POST, "/api/requests").hasRole("CUSTOMER")
-
-                        // 3. AGENT 역할만 허용
                         .requestMatchers(HttpMethod.POST, "/api/properties").hasRole("AGENT")
-
-                        // 4. 그 외 모든 요청은 인증 필요
                         .anyRequest().authenticated()
                 )
 
