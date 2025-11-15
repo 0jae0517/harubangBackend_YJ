@@ -1,6 +1,6 @@
 package com.harubang.harubangBackend.config;
 
-import com.harubang.harubangBackend.exception.CustomAccessDeniedHandler; // [추가]
+import com.harubang.harubangBackend.exception.CustomAccessDeniedHandler;
 import com.harubang.harubangBackend.filter.JwtAuthenticationFilter;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
@@ -26,7 +26,7 @@ import java.util.Arrays;
 public class SecurityConfig {
 
     private final JwtAuthenticationFilter jwtAuthenticationFilter;
-    private final CustomAccessDeniedHandler customAccessDeniedHandler; // [추가] 1단계에서 만든 핸들러 주입
+    private final CustomAccessDeniedHandler customAccessDeniedHandler;
 
     @Bean
     public PasswordEncoder passwordEncoder() {
@@ -37,14 +37,20 @@ public class SecurityConfig {
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
 
-        configuration.setAllowedOrigins(Arrays.asList(
-                "http://localhost:5173", // 로컬 개발용 프론트 주소
-                "https://your-production-domain.com" // 나중에 배포할 실제 도메인 주소
-        ));
+        // 모든 출처 허용 (개발 단계)
+        configuration.setAllowedOriginPatterns(Arrays.asList("*"));
 
-        configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "OPTIONS"));
+        // 또는 특정 도메인만 허용하려면:
+        // configuration.setAllowedOrigins(Arrays.asList(
+        //     "http://localhost:5173",
+        //     "http://localhost:3000",
+        //     "https://your-production-domain.com"
+        // ));
+
+        configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"));
         configuration.setAllowedHeaders(Arrays.asList("*"));
         configuration.setAllowCredentials(true);
+        configuration.setMaxAge(3600L); // preflight 결과 캐싱 시간
 
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/**", configuration);
@@ -54,26 +60,49 @@ public class SecurityConfig {
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
         http
+                // CSRF 비활성화 (JWT 사용 시 필요)
                 .csrf(AbstractHttpConfigurer::disable)
+
+                // CORS 설정 적용
                 .cors(cors -> cors.configurationSource(corsConfigurationSource()))
+
                 .formLogin(AbstractHttpConfigurer::disable)
                 .httpBasic(AbstractHttpConfigurer::disable)
-                .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
 
-                // [수정] 예외 처리 핸들러 등록
-                .exceptionHandling(ex ->
-                                ex.accessDeniedHandler(customAccessDeniedHandler) // 403 (권한 없음) 오류 시
-                        // [참고] 401 (인증 실패) 오류 핸들러는 여기에 .authenticationEntryPoint(...)로 추가 가능
+                // 세션 사용 안 함 (JWT 기반)
+                .sessionManagement(session ->
+                        session.sessionCreationPolicy(SessionCreationPolicy.STATELESS)
                 )
 
+                // 예외 처리
+                .exceptionHandling(ex ->
+                        ex.accessDeniedHandler(customAccessDeniedHandler)
+                )
+
+                // 경로별 권한 설정 (순서가 중요합니다! 더 구체적인 경로를 먼저!)
                 .authorizeHttpRequests(authz -> authz
-                        .requestMatchers("/api/auth/**").permitAll()
+                        // 인증 없이 접근 가능한 경로들
+                        .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()  // Preflight 요청 허용
+                        .requestMatchers("/api/auth/**").permitAll()  // 회원가입, 로그인
+                        .requestMatchers("/error").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/agent-licenses/search").permitAll()
-                        .requestMatchers(HttpMethod.POST, "/api/requests").hasRole("CUSTOMER")
+
+                        // 매물 관련 권한 설정
                         .requestMatchers(HttpMethod.POST, "/api/properties").hasRole("AGENT")
+                        .requestMatchers(HttpMethod.GET, "/api/properties/my").hasRole("AGENT")
+                        .requestMatchers(HttpMethod.DELETE, "/api/properties/**").hasRole("AGENT")
+                        .requestMatchers(HttpMethod.GET, "/api/properties/**").permitAll()  // 매물 상세/목록은 누구나
+                        .requestMatchers(HttpMethod.GET, "/api/properties").permitAll()  // 전체 매물 목록
+
+                        // 신청서 관련 권한 설정
+                        .requestMatchers(HttpMethod.POST, "/api/requests").hasRole("CUSTOMER")
+                        .requestMatchers(HttpMethod.GET, "/api/requests/my").hasRole("CUSTOMER")
+
+                        // 나머지는 인증 필요
                         .anyRequest().authenticated()
                 )
 
+                // JWT 필터 추가
                 .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
 
         return http.build();

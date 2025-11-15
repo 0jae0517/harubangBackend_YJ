@@ -11,6 +11,8 @@ import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.List;
+
 @Service
 @Transactional
 @RequiredArgsConstructor
@@ -32,7 +34,7 @@ public class PropertyService {
 
         // 2. 해당 사용자의 역할이 AGENT인지 확인
         if (agent.getRole() != Role.AGENT) {
-            throw new AccessDeniedException("매물을 등록할 권한이 없습니다."); // 403 Forbidden
+            throw new AccessDeniedException("매물을 등록할 권한이 없습니다.");
         }
 
         // 3. DTO를 Entity로 변환 (이때 User 정보가 함께 저장됨)
@@ -42,6 +44,60 @@ public class PropertyService {
         return propertyRepository.save(property);
     }
 
-    // [TODO]
-    // 1. 내 매물 목록 조회 (중개사용)
+    /**
+     * 중개사가 등록한 매물 목록 조회
+     * @param userEmail JWT 토큰에서 추출한 사용자 이메일
+     * @return 매물 목록
+     */
+    @Transactional(readOnly = true)
+    public List<Property> getMyProperties(String userEmail) {
+        User agent = userRepository.findByEmail(userEmail)
+                .orElseThrow(() -> new IllegalArgumentException("사용자를 찾을 수 없습니다."));
+
+        if (agent.getRole() != Role.AGENT) {
+            throw new AccessDeniedException("중개사만 조회할 수 있습니다.");
+        }
+
+        return propertyRepository.findByAgentId(agent.getId());
+    }
+
+    /**
+     * 매물 상세 조회
+     * @param propertyId 매물 ID
+     * @return Property 엔티티
+     */
+    @Transactional(readOnly = true)
+    public Property getPropertyById(Long propertyId) {
+        return propertyRepository.findById(propertyId)
+                .orElseThrow(() -> new IllegalArgumentException("매물을 찾을 수 없습니다."));
+    }
+
+    /**
+     * 매물 삭제
+     * @param propertyId 매물 ID
+     * @param userEmail JWT 토큰에서 추출한 사용자 이메일
+     */
+    public void deleteProperty(Long propertyId, String userEmail) {
+        User agent = userRepository.findByEmail(userEmail)
+                .orElseThrow(() -> new IllegalArgumentException("사용자를 찾을 수 없습니다."));
+
+        Property property = propertyRepository.findById(propertyId)
+                .orElseThrow(() -> new IllegalArgumentException("매물을 찾을 수 없습니다."));
+
+        // 본인이 등록한 매물인지 확인
+        if (!property.getAgent().getId().equals(agent.getId())) {
+            throw new AccessDeniedException("본인이 등록한 매물만 삭제할 수 있습니다.");
+        }
+
+        propertyRepository.delete(property);
+    }
+
+    /**
+     * 모든 매물 조회 (검색/필터링용 - 나중에 확장)
+     * @return 전체 매물 목록
+     */
+    @Transactional(readOnly = true)
+    public List<Property> getAllProperties() {
+        return propertyRepository.findAll();
+    }
 }
