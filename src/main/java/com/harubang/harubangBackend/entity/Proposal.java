@@ -35,15 +35,20 @@ public class Proposal {
     @JoinColumn(name = "agent_id", nullable = false) // user_id 대신 agent_id 사용 가능
     private User agent;
 
+    // --- [신규] 코멘트 필드 추가 ---
+    @Lob
+    @Column(columnDefinition = "TEXT")
+    private String comment;
+
     @CreationTimestamp
     private LocalDateTime createdAt;
 
     // 채팅방 ID (선택 사항, 별도 ChatRoom Entity와 연결하거나 간단히 Long 타입으로 저장)
     private Long chatRoomId;
 
-    // 생성자 (Builder 패턴 사용)
+    // 생성자 (Builder 패턴 사용) - comment 추가
     @Builder
-    public Proposal(Request request, Property property, User agent, Long chatRoomId) {
+    public Proposal(Request request, Property property, User agent, String comment, Long chatRoomId) {
         // 제안하는 중개사가 AGENT 역할인지 확인하는 로직 추가 가능
         if (agent.getRole() != Role.AGENT) {
             throw new IllegalArgumentException("제안은 공인중개사만 할 수 있습니다.");
@@ -56,6 +61,7 @@ public class Proposal {
         this.request = request;
         this.property = property;
         this.agent = agent;
+        this.comment = comment; // 코멘트 저장
         this.chatRoomId = chatRoomId;
 
         // 연관관계 편의 메소드를 사용하여 양방향 관계 설정 (선택 사항)

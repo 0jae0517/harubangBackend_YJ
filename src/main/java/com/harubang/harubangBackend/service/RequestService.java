@@ -1,6 +1,7 @@
 package com.harubang.harubangBackend.service;
 
 import com.harubang.harubangBackend.dto.RequestCreateDto;
+import com.harubang.harubangBackend.dto.RequestResponseDto;
 import com.harubang.harubangBackend.entity.Request;
 import com.harubang.harubangBackend.entity.Role;
 import com.harubang.harubangBackend.entity.User;
@@ -10,6 +11,9 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+
+import java.util.List;
+import java.util.stream.Collectors;
 
 @Service
 @Transactional
@@ -42,7 +46,47 @@ public class RequestService {
         return requestRepository.save(request);
     }
 
-    // [TODO]
-    // 1. 내 신청서 목록 조회 (마이페이지용)
-    // 2. 전체 신청서 목록 조회 (중개사용)
+    /**
+     * [신규] 고객용 내 신청서 목록 조회
+     * @param userEmail (로그인된 사용자의 이메일)
+     * @return RequestResponseDto 리스트
+     */
+    @Transactional(readOnly = true)
+    public List<RequestResponseDto> getMyRequests(String userEmail) {
+        // 1. 이메일로 사용자 조회
+        User customer = userRepository.findByEmail(userEmail)
+                .orElseThrow(() -> new IllegalArgumentException("사용자를 찾을 수 없습니다."));
+
+        // 2. 해당 사용자의 ID로 신청서 목록 조회 (findByCustomerId 사용)
+        return requestRepository.findByCustomerId(customer.getId())
+                .stream()
+                .map(RequestResponseDto::new) // Request -> RequestResponseDto 변환
+                .collect(Collectors.toList());
+    }
+
+    // --- [신규] 신청서 상세 조회 (ID 기반) ---
+    /**
+     * ID로 특정 신청서 상세 조회
+     * @param requestId 신청서 ID
+     * @return RequestResponseDto
+     */
+    @Transactional(readOnly = true)
+    public RequestResponseDto getRequestById(Long requestId) {
+        return requestRepository.findById(requestId)
+                .map(RequestResponseDto::new) // Request -> RequestResponseDto
+                .orElseThrow(() -> new IllegalArgumentException("신청서를 찾을 수 없습니다. ID: " + requestId));
+    }
+
+    /**
+     * 중개사를 위한 전체 신청서 목록 조회
+     * (나중에 상태별, 지역별 필터링 추가 가능)
+     * @return RequestResponseDto 리스트
+     */
+    @Transactional(readOnly = true)
+    public List<RequestResponseDto> getAllRequests() {
+        return requestRepository.findAll() // 모든 신청서 조회
+                .stream()
+                .map(RequestResponseDto::new) // Request -> RequestResponseDto 변환
+                .collect(Collectors.toList());
+    }
 }

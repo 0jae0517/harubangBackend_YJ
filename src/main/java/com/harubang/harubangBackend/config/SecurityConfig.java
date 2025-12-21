@@ -1,5 +1,6 @@
 package com.harubang.harubangBackend.config;
 
+
 import com.harubang.harubangBackend.exception.CustomAccessDeniedHandler;
 import com.harubang.harubangBackend.filter.JwtAuthenticationFilter;
 import lombok.RequiredArgsConstructor;
@@ -94,10 +95,16 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.GET, "/api/properties/**").permitAll()  // 매물 상세/목록은 누구나
                         .requestMatchers(HttpMethod.GET, "/api/properties").permitAll()  // 전체 매물 목록
 
-                        // 신청서 관련 권한 설정
+                        // 신청서 관련 권한 설정 (구체적인 것부터!)
                         .requestMatchers(HttpMethod.POST, "/api/requests").hasRole("CUSTOMER")
                         .requestMatchers(HttpMethod.GET, "/api/requests/my").hasRole("CUSTOMER")
-
+                        .requestMatchers(HttpMethod.GET, "/api/requests").hasRole("AGENT") // 목록
+                        // --- [신규] ID로 상세조회는 AGENT만 허용 ---
+                        .requestMatchers(HttpMethod.GET, "/api/requests/{id}").hasRole("AGENT")
+                        // --- 제안하기 API 관련
+                        .requestMatchers(HttpMethod.POST, "/api/proposals").hasRole("AGENT")
+                        // --- 제안 목록 조회 API (고객용) ---
+                        .requestMatchers(HttpMethod.GET, "/api/proposals/request/{requestId}").hasRole("CUSTOMER")
                         // 나머지는 인증 필요
                         .anyRequest().authenticated()
                 )

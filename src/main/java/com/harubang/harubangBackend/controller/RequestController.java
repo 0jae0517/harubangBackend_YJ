@@ -1,19 +1,18 @@
 package com.harubang.harubangBackend.controller;
 
-import com.harubang.harubangBackend.dto.ApiResponse; // [추가]
+import com.harubang.harubangBackend.dto.ApiResponse;
 import com.harubang.harubangBackend.dto.RequestCreateDto;
+import com.harubang.harubangBackend.dto.RequestResponseDto;
 import com.harubang.harubangBackend.entity.Request;
 import com.harubang.harubangBackend.service.RequestService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-// import org.springframework.security.access.AccessDeniedException; // [삭제] (Handler가 처리)
 import org.springframework.security.core.Authentication;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
+
+import java.util.List;
 
 @RestController
 @RequiredArgsConstructor
@@ -43,5 +42,43 @@ public class RequestController {
         // 성공 시 201 Created 응답 (data로 생성된 ID 반환)
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(ApiResponse.createSuccess(savedRequest.getId(), "신청서가 성공적으로 등록되었습니다."));
+    }
+
+    /**
+     * [신규] 고객용 내 신청서 목록 조회 API
+     * GET /api/requests/my
+     * (SecurityConfig에서 CUSTOMER 권한 필요)
+     */
+    @GetMapping("/my")
+    public ResponseEntity<ApiResponse<List<RequestResponseDto>>> getMyRequests(Authentication authentication) {
+        if (authentication == null || !authentication.isAuthenticated()) {
+            throw new IllegalStateException("인증 정보가 없습니다.");
+        }
+        String userEmail = authentication.getName();
+
+        List<RequestResponseDto> requests = requestService.getMyRequests(userEmail);
+        return ResponseEntity.ok(ApiResponse.createSuccess(requests, "내 신청서 목록 조회 성공"));
+    }
+
+    // --- [신규] 신청서 상세 조회 API ---
+    /**
+     * GET /api/requests/{id}
+     * 특정 신청서 1건을 상세 조회합니다. (주로 중개사용)
+     */
+    @GetMapping("/{id}")
+    public ResponseEntity<ApiResponse<RequestResponseDto>> getRequestById(@PathVariable Long id) {
+        RequestResponseDto request = requestService.getRequestById(id);
+        return ResponseEntity.ok(ApiResponse.createSuccess(request, "신청서 상세 조회 성공"));
+    }
+
+    /**
+     * GET /api/requests
+     * 중개사가 모든 신청서 목록을 조회합니다.
+     * (SecurityConfig에서 AGENT 권한 필요)
+     */
+    @GetMapping
+    public ResponseEntity<ApiResponse<List<RequestResponseDto>>> getAllRequests() {
+        List<RequestResponseDto> requests = requestService.getAllRequests();
+        return ResponseEntity.ok(ApiResponse.createSuccess(requests, "전체 신청서 목록 조회 성공"));
     }
 }
